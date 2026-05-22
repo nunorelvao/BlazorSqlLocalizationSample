@@ -1,0 +1,23 @@
+@namespace BlazorSqlLocalizationSample.Components
+@using Microsoft.AspNetCore.Components.Web
+@using BlazorSqlLocalizationSample.Components.Pages
+@inject NavigationManager NavManager
+
+<HeadOutlet />
+
+@code {
+    string Path => NavManager.ToBaseRelativePath(NavManager.Uri).Trim('/').ToLowerInvariant();
+}
+
+@if (string.IsNullOrEmpty(Path) || Path == "")
+{
+    <Home />
+}
+else if (Path == "test")
+{
+    <Test />
+}
+else
+{
+    <Routes />
+}

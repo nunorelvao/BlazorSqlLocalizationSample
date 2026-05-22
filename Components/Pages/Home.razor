@@ -1,0 +1,40 @@
+@page "/"
+
+@namespace BlazorSqlLocalizationSample.Components.Pages
+@using BlazorSqlLocalizationSample.Localization
+
+<PageTitle>Localization Demo</PageTitle>
+
+<div class="container mt-5">
+
+    <div style="padding:8px; border:1px dashed #6c757d; margin-bottom:12px;">Home component content</div>
+
+    <h1>@SharedResources.Welcome</h1>
+
+    <div class="mt-4">
+
+        <button class="btn btn-primary me-2">
+            @SharedResources.Save
+        </button>
+
+        <button class="btn btn-success me-2">
+            @SharedResources.Login
+        </button>
+
+        <button class="btn btn-danger">
+            @SharedResources.Logout
+        </button>
+
+    </div>
+
+    <div class="mt-4">
+
+        <h3>@SharedResources.Dashboard</h3>
+
+        <h3>hello @SharedResources.Title_Test</h3>
+
+    </div>
+
+    
+
+</div>

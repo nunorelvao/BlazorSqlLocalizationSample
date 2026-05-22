@@ -1,0 +1,52 @@
+﻿## Ignore Visual Studio temporary files, build results, and IDE folders
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Visual Studio profiler
+*.psess
+*.vsp
+*.vspx
+
+# Build results
+bin/
+obj/
+out/
+
+# Visual Studio workspace
+.vs/
+.vscode/
+
+# JetBrains Rider
+.idea/
+
+# NuGet
+**/packages/
+*.nupkg
+
+# Publish output
+publish/
+
+# Local DB files (SQLite)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+
+# Static web assets (optional)
+wwwroot/lib/
+
+# Node
+node_modules/
+
+# Misc
+*.DS_Store
+.sass-cache/
+.cache/

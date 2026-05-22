@@ -1,0 +1,20 @@
+@page "/test"
+@namespace BlazorSqlLocalizationSample.Components.Pages
+@using BlazorSqlLocalizationSample.Localization
+
+<PageTitle>Test Page</PageTitle>
+
+<div class="container mt-5">
+
+    <h1>Test Page</h1>
+
+    <p>This is a simple test page to verify routing and component rendering.</p>
+
+    <div class="mt-4">
+        <p>Shared welcome text: <strong>@SharedResources.Welcome</strong></p>
+
+        <NavLink class="btn btn-primary me-2" href="/">Home</NavLink>
+        <NavLink class="btn btn-secondary" href="/test">Refresh</NavLink>
+    </div>
+
+</div>
