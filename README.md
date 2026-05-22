@@ -47,3 +47,70 @@ Development notes
 - To switch to SQL Server, set `ConnectionStrings:SQLServer` in appsettings.json and remove/clear `SQLLite`.
 
 If you want me to trim the server-side fallback or re-enable interactive mode and help diagnose the negotiate/script loading, tell me which mode you prefer and I will adjust the project accordingly.
+
+Test project purpose
+- This repository is a test project created to demonstrate how an existing application that uses .resx resource files can be migrated to load localization strings from a database.
+- It is intended as a proof-of-concept and includes the minimal plumbing to:
+  1. Extract resource keys used across the application (represented by SharedResources.* in this sample).
+  2. Store resources in a table (LocalizationResources) keyed by ResourceKey and Culture.
+  3. Provide a lightweight ILocalizationStore implementation that reads from the DB and caches results for performance.
+  4. Offer a simple provider (LocalizationProvider) that client code can call to get localized strings.
+
+Migration considerations (high level)
+- Inventory resource usage: enumerate all keys used in .resx and replace direct resource lookups with calls to the provider.
+- Seed data: migrate existing .resx values into the LocalizationResources table (SQLScripts.sql shows an example seed).
+- Caching: database lookups can be cached in memory with sliding/absolute expirations; this sample uses IMemoryCache.
+- Concurrency & updates: provide a ReloadAsync(culture) mechanism so administrative UIs can refresh cache after edits.
+- Formats & culture fallback: implement culture fallback rules (e.g., en-US -> en) as needed by the app.
+- Tooling: for large projects, consider a script that converts .resx files into INSERT statements or uses a migration step to populate the DB.
+
+Security & operations
+- Secure access to the database and limit who can edit localization entries.
+- Consider adding versioning/audit columns to LocalizationResources for change tracking.
+- If using SQL Server, adapt SQLScripts.sql to be compatible with T-SQL and use proper idempotent checks (IF NOT EXISTS ...).
+
+Resx-to-SQL conversion tool
+- Location: tools/resx-to-sql.ps1
+- Purpose: converts .resx files into idempotent SQL INSERT statements suitable for seeding the LocalizationResources table.
+- Supported providers: sqlite (default) and sqlserver (T-SQL formatting).
+- Parameters:
+  -InputDir (default: .) : directory to scan for .resx files (recurses).
+  -OutputFile (default: resx-inserts.sql) : path to write SQL statements.
+  -DefaultCulture (default: en) : culture to assign to neutral .resx files (e.g., Resources.resx).
+  -Provider (sqlite|sqlserver) : controls SQL dialect/emitted statements.
+- Example:
+  powershell.exe -ExecutionPolicy Bypass -File .\tools\resx-to-sql.ps1 -InputDir .\Resources -OutputFile seed.sql -Provider sqlite
+- Notes:
+  - The script emits idempotent INSERTs using a WHERE NOT EXISTS check so the statements can be executed repeatedly without creating duplicates.
+  - For large projects, run the script as part of a localization migration step and review the generated SQL before applying to production.
+
+SQLScripts.sql details
+- The file SQLScripts.sql in the repository is written for SQLite and uses CREATE TABLE IF NOT EXISTS and INSERT ... SELECT ... WHERE NOT EXISTS so it is safe to run multiple times.
+- If you switch to SQL Server, replace this file with an idempotent T-SQL script (IF NOT EXISTS ... INSERT ...).
+
+Application modes and how to control them
+- Interactive server components (SignalR + blazor.server.js): when enabled the browser loads _framework/blazor.server.js and establishes a SignalR connection to the server. This gives full interactivity but requires the negotiate /_blazor endpoints and websockets to work.
+- Server-render fallback: the project includes a safe server-side fallback that directly renders Home/Test components on the server so the initial view appears even if the interactive runtime fails to initialize.
+- To prefer interactive mode: ensure MapRazorComponents<App>().AddInteractiveServerRenderMode() is configured and that the client can load _framework/blazor.server.js. If you prefer server rendering only, MapRazorComponents<App>() without interactive bindings is sufficient.
+
+Diagnostics and troubleshooting checklist
+- Endpoints:
+  - /_diagnostics/ping returns pong.
+  - /_diagnostics/endpoints returns a JSON array of registered endpoints and patterns.
+- When pages are blank, check these in order:
+  1. Browser DevTools -> Network: _framework/blazor.server.js should be requested and return 200.
+  2. Browser DevTools -> Network: /_blazor/negotiate should be requested and return JSON.
+  3. Server logs (Visual Studio Output) show routed components discovered (Found routed component: ...).
+  4. Ensure no static wwwroot/index.html is interfering if you want components to own the root path.
+  5. If you see antiforgery errors, confirm AddAntiforgery + UseAntiforgery are present in Program.cs.
+
+CI / automation
+- You can run the resx-to-sql.ps1 script as part of a build or migration pipeline to produce a seed SQL file. Review and apply the generated SQL during deployment.
+
+Where to look in this repo
+- Program.cs - application startup, DB initialization, diagnostics wiring, and component hosting mode.
+- SQLScripts.sql - idempotent SQLite seed script.
+- Data/LocalizationDbContext.cs and Data/LocalizationResource.cs - EF Core model.
+- Localization/LocalizationStore.cs and Localization/ILocalizationStore.cs - runtime store + cache.
+- Localization/SharedResources.* - generated helper for localization property access.
+- tools/resx-to-sql.ps1 - resx -> SQL converter script.
