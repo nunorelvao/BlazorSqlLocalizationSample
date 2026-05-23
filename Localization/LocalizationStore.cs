@@ -2,6 +2,7 @@ using BlazorSqlLocalizationSample.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using System.Globalization;
+using Microsoft.Extensions.Logging;
 
 namespace BlazorSqlLocalizationSample.Localization;
 
@@ -9,6 +10,7 @@ public class LocalizationStore : ILocalizationStore
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IMemoryCache _cache;
+    private readonly ILogger<LocalizationStore> _logger;
 
     private static readonly SemaphoreSlim _lock = new(1, 1);
 
@@ -18,6 +20,17 @@ public class LocalizationStore : ILocalizationStore
     {
         _scopeFactory = scopeFactory;
         _cache = cache;
+    }
+
+    // New constructor overload for DI to provide ILogger
+    public LocalizationStore(
+        IServiceScopeFactory scopeFactory,
+        IMemoryCache cache,
+        ILogger<LocalizationStore> logger)
+    {
+        _scopeFactory = scopeFactory;
+        _cache = cache;
+        _logger = logger;
     }
 
     public string GetString(string key)
@@ -62,19 +75,30 @@ public class LocalizationStore : ILocalizationStore
                     x => x.ResourceKey,
                     x => x.ResourceValue);
 
-            _cache.Set(
-                cacheKey,
-                dict,
-                new MemoryCacheEntryOptions
+
+            var cacheOptions = new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(6),
+                SlidingExpiration = TimeSpan.FromHours(1),
+                Priority = CacheItemPriority.High,
+                Size = 1
+            };
+
+            cacheOptions.RegisterPostEvictionCallback((key, value, reason, state) =>
+            {
+                try
                 {
-                    AbsoluteExpirationRelativeToNow =
-                        TimeSpan.FromHours(6),
+                    _logger?.LogInformation("Cache entry {Key} evicted due to {Reason}", key, reason);
+                    // Optionally kick off a background reload to warm cache
+                    _ = ReloadAsync(state as string ?? culture);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Error during eviction callback for {Key}", key);
+                }
+            }, state: culture);
 
-                    SlidingExpiration =
-                        TimeSpan.FromHours(1),
-
-                    Priority = CacheItemPriority.High
-                });
+            _cache.Set(cacheKey, dict, cacheOptions);
 
             return dict;
         }
@@ -89,5 +113,11 @@ public class LocalizationStore : ILocalizationStore
         _cache.Remove($"LOC_{culture}");
 
         return Task.CompletedTask;
+    }
+
+    public void EnsureLoaded(string culture)
+    {
+        // Force loading into cache if not present
+        GetCultureDictionary(culture);
     }
 }

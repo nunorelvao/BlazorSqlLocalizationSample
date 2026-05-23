@@ -4,8 +4,6 @@ using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 using BlazorSqlLocalizationSample.Components;
-using Microsoft.Extensions.Logging;
-using Microsoft.AspNetCore.Routing;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,7 +11,11 @@ var builder = WebApplication.CreateBuilder(args);
 // Configure Razor Components for server-side rendering only (no interactive runtime)
 builder.Services.AddRazorComponents();
 
-builder.Services.AddMemoryCache();
+// Configure IMemoryCache using settings from appsettings.json (MemoryCache section)
+builder.Services.AddMemoryCache(options =>
+{
+    builder.Configuration.GetSection("MemoryCache").Bind(options);
+});
 
 // Antiforgery is required by Razor Components endpoints that include antiforgery metadata
 builder.Services.AddAntiforgery();
@@ -154,21 +156,35 @@ if (!string.IsNullOrEmpty(sqlLiteConn) &&
 
 var supportedCultures = new[]
 {
-    new CultureInfo("en"),
-    new CultureInfo("pt")
+      new CultureInfo("pt"),
+     //ew CultureInfo("en")
 };
 
 app.UseRequestLocalization(new RequestLocalizationOptions
 {
-    DefaultRequestCulture = new RequestCulture("en"),
-
+    DefaultRequestCulture = new RequestCulture("pt"),
     SupportedCultures = supportedCultures,
-
     SupportedUICultures = supportedCultures
 });
 
 LocalizationProvider.Store =
     app.Services.GetRequiredService<ILocalizationStore>();
+
+// Warm-up default culture cache
+try
+{
+    var defaultCulture = supportedCultures.First();
+
+    CultureInfo.DefaultThreadCurrentCulture = defaultCulture;
+    CultureInfo.DefaultThreadCurrentUICulture = defaultCulture;
+
+    startupLogger.LogInformation("Warming up localization cache for default culture: {Culture}", defaultCulture.Name);
+    app.Services.GetRequiredService<ILocalizationStore>().EnsureLoaded(defaultCulture.Name);
+}
+catch (Exception ex)
+{
+    startupLogger.LogWarning(ex, "Failed to warm up localization cache at startup.");
+}
 
 // Serve static files first so default documents (index.html) are handled by static file middleware
 app.UseStaticFiles();
@@ -211,6 +227,26 @@ app.MapGet("/_diagnostics/endpoints", (EndpointDataSource ds) =>
     });
 
     return Results.Json(list);
+});
+
+// Reset localization cache endpoint
+// Usage:
+//   GET /resetlocalizationcache            -> clears cache for all supported cultures
+//   GET /resetlocalizationcache?culture=pt -> clears cache for specified culture
+app.MapGet("/resetlocalizationcache", async (ILocalizationStore store, string? culture) =>
+{
+    if (string.IsNullOrEmpty(culture))
+    {
+        foreach (var c in supportedCultures)
+        {
+            await store.ReloadAsync(c.Name);
+        }
+
+        return Results.Ok(new { cleared = supportedCultures.Select(c => c.Name).ToArray() });
+    }
+
+    await store.ReloadAsync(culture);
+    return Results.Ok(new { cleared = new[] { culture } });
 });
 
 // Log endpoints to check that routing for components is configured

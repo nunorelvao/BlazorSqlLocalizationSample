@@ -52,7 +52,7 @@ WHERE NOT EXISTS (SELECT 1 FROM LocalizationResources WHERE ResourceKey = 'Dashb
 
 --- Title_Test
 INSERT INTO LocalizationResources (ResourceKey, Culture, ResourceValue, UpdatedAt)
-SELECT 'Title_Test', 'pt', 'Test', datetime('now')
+SELECT 'Title_Test', 'pt', 'Teste', datetime('now')
 WHERE NOT EXISTS (SELECT 1 FROM LocalizationResources WHERE ResourceKey = 'Title_Test' AND Culture = 'pt');
 
 INSERT INTO LocalizationResources (ResourceKey, Culture, ResourceValue, UpdatedAt)

@@ -114,3 +114,55 @@ Where to look in this repo
 - Localization/LocalizationStore.cs and Localization/ILocalizationStore.cs - runtime store + cache.
 - Localization/SharedResources.* - generated helper for localization property access.
 - tools/resx-to-sql.ps1 - resx -> SQL converter script.
+
+Memory cache configuration
+--------------------------
+The app binds IMemoryCache options from the MemoryCache section in appsettings.json. The following settings are available:
+
+- SizeLimit (long) — enables a size-based eviction policy. Entries must set a Size value via MemoryCacheEntryOptions.Size to be counted against this limit.
+- CompactionPercentage (double 0..1) — when the cache exceeds SizeLimit, this fraction of the cache will be compacted on the next pass.
+- ExpirationScanFrequency (TimeSpan) — how often the cache scans for expired entries and performs maintenance.
+
+Example appsettings.json (already present in this repo):
+
+```json
+"MemoryCache": {
+  "SizeLimit": 1024,
+  "CompactionPercentage": 0.2,
+  "ExpirationScanFrequency": "00:05:00"
+}
+```
+
+Per-entry options (recommended)
+- Use MemoryCacheEntryOptions to control lifetimes and eviction behavior per entry. Typical options:
+  - AbsoluteExpirationRelativeToNow: a hard TTL
+  - SlidingExpiration: resets on access
+  - Priority: CacheItemPriority.High / Normal / Low / NeverRemove
+  - Size: long (counts against SizeLimit)
+  - RegisterPostEvictionCallback: useful to trigger a refresh or log evictions
+
+Example usage in LocalizationStore (pseudo-code):
+
+```csharp
+var cacheOptions = new MemoryCacheEntryOptions
+{
+	AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(6),
+	SlidingExpiration = TimeSpan.FromHours(1),
+	Priority = CacheItemPriority.High,
+	Size = 1
+};
+
+cacheOptions.RegisterPostEvictionCallback((key, value, reason, state) =>
+{
+	// Optionally refresh or log
+	_ = ReloadAsync(culture: (string?)state);
+});
+
+_cache.Set(cacheKey, dict, cacheOptions);
+```
+
+Notes & recommendations
+- If you enable SizeLimit, ensure you set Size for all entries (choose a unit such as 1 per culture dictionary).
+- Use sliding expiration for frequently-accessed culture dictionaries and absolute expiration for guaranteed periodic refresh.
+- Use the eviction callback to trigger asynchronous reloads if you want the cache to be warmed on eviction.
+- For multi-node deployments prefer an IDistributedCache (Redis) to share cache state across instances.

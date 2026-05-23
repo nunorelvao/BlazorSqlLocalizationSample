@@ -50,3 +50,5 @@ node_modules/
 *.DS_Store
 .sass-cache/
 .cache/
+/test.db-shm
+/test.db-wal
